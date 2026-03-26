@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nifty Analyser - Ravi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-100">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // Fixed Imports for Browser Compatibility
+        const { useState, useCallback, useEffect } = React;
+        const { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } = Recharts;
+
+        // --- INDICATOR LOGIC ---
+        function calcEMA(arr, p) {
+            if (!arr || arr.length < p) return (arr || []).map(() => null);
+            const k = 2 / (p + 1);
+            const out = new Array(p - 1).fill(null);
+            let e = arr.slice(0, p).reduce((a, b) => a + b, 0) / p;
+            out.push(+e.toFixed(2));
+            for (let i = p; i < arr.length; i++) {
+                e = arr[i] * k + e * (1 - k);
+                out.push(+e.toFixed(2));
+            }
+            return out;
+        }
+
+        function calcRSI(arr, p = 14) {
+            if (!arr || arr.length <= p) return (arr || []).map(() => null);
+            const out = new Array(p).fill(null);
+            let ag = 0, al = 0;
+            for (let i = 1; i <= p; i++) {
+                const d = arr[i] - arr[i - 1];
+                if (d > 0) ag += d; else al -= d;
+            }
+            ag /= p; al /= p;
+            out.push(al === 0 ? 100 : +(100 - 100 / (1 + ag / al)).toFixed(2));
+            for (let i = p + 1; i < arr.length; i++) {
+                const d = arr[i] - arr[i - 1];
+                const g = d > 0 ? d : 0, l = d < 0 ? -d : 0;
+                ag = (ag * (p - 1) + g) / p;
+                al = (al * (p - 1) + l) / p;
+                out.push(al === 0 ? 100 : +(100 - 100 / (1 + ag / al)).toFixed(2));
+            }
+            return out;
+        }
+
+        // --- FETCHING DATA ---
+        async function fetchMarketData(instrument, dateStr) {
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const p1 = Math.floor(Date.UTC(y, m - 1, d, 3, 45, 0) / 1000);
+            const p2 = Math.floor(Date.UTC(y, m - 1, d, 10, 0, 0) / 1000);
+            const ticker = instrument === 'NIFTY50' ? '^NSEI' : '^NSEBANK';
+            const base = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=5m&period1=${p1}&period2=${p2}`;
+            
+            try {
+                const r = await fetch(`https://corsproxy.io/?${encodeURIComponent(base)}`);
+                const j = await r.json();
+                return j?.chart?.result?.[0];
+            } catch (e) {
+                throw new Error("Market data fetch failed. Check if date is a weekend/holiday.");
+            }
+        }
+
+        // --- UI COMPONENTS ---
+        const App = () => {
+            const [data, setData] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+            const runAnalysis = async () => {
+                setLoading(true);
+                try {
+                    const result = await fetchMarketData('NIFTY50', date);
+                    setData(result);
+                } catch (e) {
+                    alert(e.message);
+                }
+                setLoading(false);
+            };
+
+            return (
+                <div className="max-w-md mx-auto p-4">
+                    <header className="mb-6 text-center">
+                        <h1 className="text-2xl font-bold text-sky-400">Nifty Analyser</h1>
+                        <p className="text-gray-500 text-xs">By Ravi · Quant Fintech Tool</p>
+                    </header>
+
+                    <div className="bg-gray-800 p-4 rounded-xl mb-4 border border-gray-700">
+                        <label className="block text-xs text-gray-400 mb-2 font-mono">SELECT DATE</label>
+                        <input 
+                            type="date" 
+                            className="w-full bg-gray-900 border border-gray-600 p-2 rounded text-white"
+                            value={date}
+                            onChange={(e) => setDate(e.target.value)}
+                        />
+                        <button 
+                            onClick={runAnalysis}
+                            className="w-full mt-3 bg-sky-500 text-black font-bold py-2 rounded-lg hover:bg-sky-400 transition"
+                        >
+                            {loading ? "Analyzing..." : "RUN ANALYSIS"}
+                        </button>
+                    </div>
+
+                    {data && (
+                        <div className="text-center text-sm text-gray-400 font-mono">
+                            Data Loaded for {date}. <br/> Charts and indicators calculated below.
+                        </div>
+                    )}
+                    
+                    <footer className="mt-10 text-[10px] text-gray-600 text-center leading-relaxed">
+                        ⚠️ NOT FINANCIAL ADVICE. Educational purposes only. <br/>
+                        Options trading involves significant risk of loss.
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
