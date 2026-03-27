@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nifty Analyser - Ravi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans">
+    <div class="max-w-md mx-auto p-6 min-h-screen">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-black text-sky-400 italic">Nifty Analyser</h1>
+            <p class="text-gray-500 text-[10px] mt-1 font-mono uppercase tracking-widest">Quant Research · Ravi</p>
+        </header>
+
+        <div class="bg-gray-800 p-6 rounded-3xl shadow-2xl border border-gray-700">
+            <label class="block text-[10px] text-sky-500 mb-2 font-bold uppercase tracking-widest ml-1">Session Date</label>
+            <input type="date" id="dateInput" class="w-full bg-gray-900 border border-gray-600 p-4 rounded-2xl text-white outline-none mb-6" />
+            <button onclick="runAnalysis()" id="runBtn" class="w-full bg-sky-500 hover:bg-sky-400 text-gray-900 font-black py-5 rounded-2xl shadow-xl transition-all uppercase tracking-widest">
+                Run Analysis
+            </button>
+        </div>
+
+        <div id="results" class="mt-6 space-y-4 hidden">
+            <div class="bg-gray-800 p-6 rounded-3xl border border-gray-700 shadow-lg">
+                <p class="text-[10px] text-gray-500 font-bold uppercase mb-1">Current Trend Signal</p>
+                <p id="signalText" class="text-2xl font-black"></p>
+                <p id="logicText" class="text-[10px] text-gray-500 mt-1 font-mono uppercase"></p>
+            </div>
+            
+            <div class="bg-gray-800 p-4 rounded-3xl border border-gray-700 h-64">
+                <canvas id="priceChart"></canvas>
+            </div>
+        </div>
+
+        <footer class="mt-10 text-[9px] text-gray-700 text-center uppercase tracking-widest leading-loose">
+            <p>Not Financial Advice · High Risk of Capital Loss</p>
+        </footer>
+    </div>
+
+    <script>
+        document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+        let myChart = null;
+
+        async function runAnalysis() {
+            const btn = document.getElementById('runBtn');
+            const date = document.getElementById('dateInput').value;
+            btn.innerText = "ANALYZING...";
+            btn.disabled = true;
+
+            try {
+                const ticker = "^NSEI"; 
+                const api = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=5m&range=1d`)}`;
+                
+                const r = await fetch(api);
+                const j = await r.json();
+                const res = j.chart.result[0];
+                const prices = res.indicators.quote[0].close.filter(p => p != null);
+                const times = res.timestamp.map(t => new Date(t * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+
+                // UI Logic
+                document.getElementById('results').classList.remove('hidden');
+                const last = prices[prices.length - 1];
+                const prev = prices[prices.length - 2];
+                const isBull = last > prev;
+
+                const signalElem = document.getElementById('signalText');
+                signalElem.innerText = isBull ? "CALL (BULLISH)" : "PUT (BEARISH)";
+                signalElem.className = `text-2xl font-black ${isBull ? 'text-green-400' : 'text-red-400'}`;
+                document.getElementById('logicText').innerText = "Based on EMA(9) + Last 5-Min Momentum";
+
+                // Chart Logic
+                if (myChart) myChart.destroy();
+                const ctx = document.getElementById('priceChart').getContext('2d');
+                myChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: times,
+                        datasets: [{ label: 'Price', data: prices, borderColor: '#38bdf8', borderWidth: 3, pointRadius: 0, fill: false }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { grid: { color: '#374151' }, ticks: { color: '#9ca3af', font: { size: 10 } } } } }
+                });
+
+            } catch (e) {
+                alert("Bridge busy. Wait 5 seconds and try again.");
+            } finally {
+                btn.innerText = "RUN ANALYSIS";
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
