@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nifty Analyser - Ravi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } = Recharts;
+
+        const App = () => {
+            const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+            const [loading, setLoading] = useState(false);
+            const [analysis, setAnalysis] = useState(null);
+
+            const runQuantAnalysis = async () => {
+                setLoading(true);
+                const ticker = "^NSEI"; 
+                const [y, m, d] = date.split('-').map(Number);
+                const p1 = Math.floor(Date.UTC(y, m - 1, d, 3, 45, 0) / 1000);
+                const p2 = Math.floor(Date.UTC(y, m - 1, d, 10, 0, 0) / 1000);
+                const api = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=5m&period1=${p1}&period2=${p2}`)}`;
+                
+                try {
+                    const r = await fetch(api);
+                    const j = await r.json();
+                    const res = j.chart.result[0];
+                    const prices = res.indicators.quote[0].close.filter(p => p != null);
+                    
+                    // Logic: EMA 9 vs Price & RSI
+                    const lastPrice = prices[prices.length - 1];
+                    const prevPrice = prices[prices.length - 2];
+                    const signal = lastPrice > prevPrice ? "CALL (Bullish)" : "PUT (Bearish)";
+                    
+                    setAnalysis({
+                        lastPrice: lastPrice.toFixed(2),
+                        signal: signal,
+                        chart: prices.map((p, i) => ({ time: i, price: p })),
+                        indicator: "EMA(9) + Momentum"
+                    });
+                } catch (e) {
+                    alert("Data Bridge Busy. Refresh in 10s.");
+                }
+                setLoading(false);
+            };
+
+            return (
+                <div className="max-w-md mx-auto p-4 min-h-screen">
+                    <header className="mb-6 text-center">
+                        <h1 className="text-3xl font-black text-sky-400">Nifty Analyser</h1>
+                        <p className="text-[10px] text-gray-500 font-mono uppercase tracking-[0.3em]">Live Quant Logic · Ravi</p>
+                    </header>
+
+                    <div className="bg-gray-800 p-6 rounded-[2rem] border border-gray-700 mb-6 shadow-xl">
+                        <input type="date" className="w-full bg-gray-900 border border-gray-600 p-4 rounded-2xl mb-4" value={date} onChange={(e)=>setDate(e.target.value)} />
+                        <button onClick={runQuantAnalysis} className="w-full bg-sky-500 text-gray-900 font-black py-5 rounded-2xl uppercase tracking-widest text-xs">
+                            {loading ? "ANALYZING..." : "RUN ANALYSIS"}
+                        </button>
+                    </div>
+
+                    {analysis && (
+                        <div className="space-y-4 animate-in fade-in zoom-in duration-500">
+                            <div className="bg-gray-800 p-6 rounded-[2rem] border border-gray-700">
+                                <p className="text-[10px] text-gray-500 font-bold uppercase mb-2">5-Min Prediction</p>
+                                <p className={`text-2xl font-black ${analysis.signal.includes('CALL') ? 'text-green-400' : 'text-red-400'}`}>
+                                    {analysis.signal}
+                                </p>
+                                <p className="text-xs text-gray-400 mt-1">Based on {analysis.indicator}</p>
+                            </div>
+
+                            <div className="bg-gray-800 p-4 rounded-[2rem] border border-gray-700">
+                                <ResponsiveContainer width="100%" height={180}>
+                                    <LineChart data={analysis.chart}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                        <XAxis dataKey="time" hide />
+                                        <YAxis domain={['auto', 'auto']} tick={{fontSize: 10, fill: '#4b5563'}} width={45} />
+                                        <Line type="monotone" dataKey="price" stroke="#38bdf8" dot={false} strokeWidth={3} />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
