@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nifty Analyser - Ravi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        const App = () => {
+            const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+            const [status, setStatus] = useState("");
+            const [loading, setLoading] = useState(false);
+
+            const startAnalysis = async () => {
+                setLoading(true);
+                setStatus("📡 Searching for a stable market bridge...");
+                
+                const ticker = "^NSEI"; 
+                const [y, m, d] = date.split('-').map(Number);
+                const p1 = Math.floor(Date.UTC(y, m - 1, d, 3, 45, 0) / 1000);
+                const p2 = Math.floor(Date.UTC(y, m - 1, d, 10, 0, 0) / 1000);
+                const apiBase = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=5m&period1=${p1}&period2=${p2}`;
+                
+                // List of backup bridges to avoid "Could not connect"
+                const proxies = [
+                    `https://api.allorigins.win/raw?url=${encodeURIComponent(apiBase)}`,
+                    `https://corsproxy.io/?${encodeURIComponent(apiBase)}`,
+                    `https://thingproxy.freeboard.io/fetch/${apiBase}`
+                ];
+
+                let success = false;
+
+                for (let proxy of proxies) {
+                    try {
+                        const r = await fetch(proxy);
+                        if (!r.ok) continue;
+                        const j = await r.json();
+                        if (j?.chart?.result) {
+                            setStatus("✅ Success! Live Data for " + date + " is now active.");
+                            success = true;
+                            break; 
+                        }
+                    } catch (e) {
+                        console.log("Bridge failed, trying next...");
+                    }
+                }
+
+                if (!success) {
+                    setStatus("❌ Market bridges are busy. Try selecting 'March 25' or wait 60 seconds.");
+                }
+                setLoading(false);
+            };
+
+            return (
+                <div className="max-w-md mx-auto p-6 min-h-screen flex flex-col justify-center">
+                    <header className="mb-8 text-center">
+                        <h1 className="text-4xl font-black text-sky-400 tracking-tighter italic">Nifty Analyser</h1>
+                        <p className="text-gray-500 text-[10px] mt-1 font-mono uppercase tracking-[0.3em]">Quant Research · Ravi</p>
+                    </header>
+
+                    <div className="bg-gray-800 p-8 rounded-[2rem] shadow-2xl border border-gray-700/50">
+                        <label className="block text-[10px] text-sky-500 mb-3 font-bold uppercase tracking-widest ml-1">Session Target Date</label>
+                        <input 
+                            type="date" 
+                            className="w-full bg-gray-900 border border-gray-600 p-4 rounded-2xl text-white focus:ring-2 focus:ring-sky-500 outline-none transition-all mb-6"
+                            value={date}
+                            onChange={(e) => setDate(e.target.value)}
+                        />
+                        <button 
+                            onClick={startAnalysis}
+                            disabled={loading}
+                            className={`w-full font-black py-5 rounded-2xl shadow-xl uppercase tracking-widest transition-all ${loading ? 'bg-gray-700 text-gray-500' : 'bg-sky-500 hover:bg-sky-400 text-gray-900'}`}
+                        >
+                            {loading ? "📡 CONNECTING..." : "RUN ANALYSIS"}
+                        </button>
+                    </div>
+
+                    {status && (
+                        <div className="mt-8 p-4 bg-gray-900/50 rounded-xl border border-gray-800 text-center text-xs text-gray-400 font-mono animate-in fade-in slide-in-from-bottom-2 duration-500">
+                            {status}
+                        </div>
+                    )}
+                    
+                    <footer className="mt-auto pt-10 text-[9px] text-gray-700 text-center uppercase tracking-widest leading-loose">
+                        <p>Proprietary Ravi Quant Engine v1.1</p>
+                        <p>Not Financial Advice · High Risk of Capital Loss</p>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
