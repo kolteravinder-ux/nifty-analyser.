@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nifty Analyser - Ravi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        const App = () => {
+            const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+            const [status, setStatus] = useState("");
+            const [loading, setLoading] = useState(false);
+
+            const startAnalysis = async () => {
+                setLoading(true);
+                setStatus("Fetching live market data...");
+                
+                // Real data logic
+                const ticker = "^NSEI"; // Nifty 50
+                const [y, m, d] = date.split('-').map(Number);
+                const p1 = Math.floor(Date.UTC(y, m - 1, d, 3, 45, 0) / 1000);
+                const p2 = Math.floor(Date.UTC(y, m - 1, d, 10, 0, 0) / 1000);
+                const base = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=5m&period1=${p1}&period2=${p2}`;
+                
+                try {
+                    const r = await fetch(`https://corsproxy.io/?${encodeURIComponent(base)}`);
+                    const j = await r.json();
+                    if (j.chart.result) {
+                        setStatus("Success! Data loaded for " + date);
+                    } else {
+                        setStatus("No data found. Market may have been closed.");
+                    }
+                } catch (e) {
+                    setStatus("Error: Could not connect to market data.");
+                }
+                setLoading(false);
+            };
+
+            return (
+                <div className="max-w-md mx-auto p-6">
+                    <header className="mb-8 text-center">
+                        <h1 className="text-3xl font-extrabold text-sky-400 tracking-tight">Nifty Analyser</h1>
+                        <p className="text-gray-500 text-xs mt-2 font-mono uppercase tracking-widest">Quant Research Tool · Ravi</p>
+                    </header>
+
+                    <div className="bg-gray-800 p-6 rounded-2xl shadow-2xl border border-gray-700">
+                        <label className="block text-[10px] text-sky-500 mb-2 font-bold uppercase tracking-wider">Trading Session Date</label>
+                        <input 
+                            type="date" 
+                            className="w-full bg-gray-900 border border-gray-600 p-3 rounded-xl text-white focus:border-sky-500 outline-none transition-all"
+                            value={date}
+                            onChange={(e) => setDate(e.target.value)}
+                        />
+                        <button 
+                            onClick={startAnalysis}
+                            disabled={loading}
+                            className="w-full mt-6 bg-sky-500 hover:bg-sky-400 text-gray-900 font-black py-4 rounded-xl shadow-lg transform active:scale-95 transition-all uppercase tracking-tighter"
+                        >
+                            {loading ? "Processing..." : "Run Intraday Analysis"}
+                        </button>
+                    </div>
+
+                    {status && (
+                        <div className="mt-8 text-center text-sm text-gray-400 font-mono">
+                            <p>{status}</p>
+                        </div>
+                    )}
+                    
+                    <footer className="mt-12 text-[10px] text-gray-600 text-center leading-relaxed font-medium">
+                        <p className="mb-2">⚠️ PROPRIETARY QUANT TOOL — NOT FINANCIAL ADVICE</p>
+                        <p>Options trading carries 70%+ risk of capital loss.</p>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
